@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a0f">
+<title>Turbo Racing</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0f;color:#fff;font-family:-apple-system,Roboto,sans-serif;position:fixed;overscroll-behavior:none}
+canvas{display:block;position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.hidden{display:none!important}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;background:radial-gradient(circle at 50% 20%,#1a1a2e 0%,#0a0a0f 70%);z-index:10;overflow-y:auto}
+.title{font-size:38px;font-weight:900;letter-spacing:2px;margin-bottom:20px;text-align:center}
+.title span{color:#ff3366;text-shadow:0 0 20px rgba(255,51,102,.6)}
+.lbl{width:100%;max-width:340px;font-size:12px;color:#888;margin:12px 0 6px;text-transform:uppercase;letter-spacing:1px}
+.inp{width:100%;max-width:340px;padding:14px;background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.12);border-radius:12px;color:#fff;font-size:16px;outline:none;-webkit-user-select:text;user-select:text}
+.inp:focus{border-color:#ff3366}
+.inp.code{text-transform:uppercase;letter-spacing:4px;text-align:center;font-weight:bold}
+.colors{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:340px}
+.swatch{width:40px;height:40px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s}
+.swatch.active{border-color:#fff;transform:scale(1.15)}
+.btn{width:100%;max-width:340px;padding:16px;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;transition:transform .1s;margin-top:14px}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(135deg,#ff3366,#ff6633);color:#fff;box-shadow:0 4px 20px rgba(255,51,102,.4)}
+.btn.secondary{background:rgba(255,255,255,.12);color:#fff}
+.btn.green{background:linear-gradient(135deg,#34c759,#28a745);color:#fff;box-shadow:0 4px 20px rgba(52,199,89,.4)}
+.btn.danger{background:rgba(255,60,60,.25);color:#ff6666}
+.err{color:#ff5566;margin-top:12px;font-size:14px;min-height:18px;text-align:center}
+.roomcode{font-size:38px;font-weight:900;letter-spacing:8px;color:#ff3366;margin:10px 0}
+.hint{color:#888;font-size:13px;text-align:center;margin:6px 0}
+.players-box{width:100%;max-width:340px;display:flex;flex-direction:column;gap:8px;margin:14px 0}
+.pl-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,.06);border-radius:10px;font-size:14px}
+.pl-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+#hud{position:absolute;inset:0;pointer-events:none;z-index:5}
+.hud-top{position:absolute;top:0;left:0;right:0;padding:12px;padding-top:calc(12px + env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:center}
+.speedo{background:rgba(0,0,0,.6);padding:8px 16px;border-radius:12px;font-weight:700}
+.speedo span{font-size:22px;color:#ff3366}
+.speedo small{font-size:11px;opacity:.6;margin-left:3px}
+.lapbox{background:rgba(0,0,0,.6);padding:8px 14px;border-radius:12px;font-size:13px;font-weight:600}
+.exit{pointer-events:auto;width:40px;height:40px;border-radius:50%;background:rgba(255,60,60,.3);border:1px solid rgba(255,60,60,.6);color:#ff6666;font-size:18px;font-weight:700}
+.lb{position:absolute;top:70px;right:12px;background:rgba(0,0,0,.6);padding:8px 12px;border-radius:10px;font-size:12px;min-width:140px;display:flex;flex-direction:column;gap:4px}
+.lb-row{display:flex;justify-content:space-between;gap:8px}
+.lb-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+#controls{position:absolute;inset:0;pointer-events:none;display:flex;justify-content:space-between;align-items:flex-end;padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom));z-index:6}
+.grp{display:flex;gap:14px;pointer-events:none}
+.cbtn{pointer-events:auto;width:78px;height:78px;border-radius:50%;background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.3);color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:background .08s,transform .08s}
+.cbtn.on{background:rgba(255,51,102,.6);border-color:#ff3366;transform:scale(.92)}
+@media(max-height:500px){.cbtn{width:64px;height:64px;font-size:22px}#controls{padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="speedo"><span id="spd">0</span><small>km/h</small></div>
+    <div class="lapbox">Круг <span id="lapN">1</span>/3</div>
+    <button class="exit" id="exitBtn">✕</button>
+  </div>
+  <div class="lb" id="lb"></div>
+</div>
+
+<div id="controls" class="hidden">
+  <div class="grp">
+    <button class="cbtn" data-k="left">◀</button>
+    <button class="cbtn" data-k="right">▶</button>
+  </div>
+  <div class="grp">
+    <button class="cbtn" data-k="up">▲</button>
+    <button class="cbtn" data-k="down">▼</button>
+  </div>
+</div>
+
+<!-- MENU -->
+<div id="menu" class="screen">
+  <div class="title">🏎️ TURBO<br><span>RACING</span></div>
+  <div class="lbl">Ник</div>
+  <input id="nick" class="inp" maxlength="14" value="Гонщик1">
+  <div class="lbl">Цвет</div>
+  <div id="colors" class="colors"></div>
+  <button id="btnCreate" class="btn primary">Создать комнату</button>
+  <div class="lbl">Код комнаты</div>
+  <input id="code" class="inp code" maxlength="5" placeholder="XXXXX" autocapitalize="characters">
+  <button id="btnJoin" class="btn green">Подключиться</button>
+  <div id="err" class="err"></div>
+</div>
+
+<!-- LOBBY -->
+<div id="lobby" class="screen hidden">
+  <div class="title" style="font-size:24px">Лобби</div>
+  <div class="hint">Код комнаты:</div>
+  <div class="roomcode" id="roomCodeLbl">-----</div>
+  <div class="hint">Игроков: <b id="plCount">1</b>/6</div>
+  <div class="players-box" id="plBox"></div>
+  <button id="btnStart" class="btn primary">Начать гонку</button>
+  <button id="btnLeave" class="btn danger">Выйти</button>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(() => {
+'use strict';
+
+// ======================= CONFIG =======================
+const TRACK = { x: 200, y: 200, w: 2600, h: 1600 };
+const INNER = { x: 700, y: 600, w: 1600, h: 800 };
+const MAX_FWD = 480, MAX_BACK = -180, ACCEL = 340, BRAKE = 540, FRICTION = 90;
+const TOTAL_LAPS = 3;
+const CP_RADIUS = 180;
+
+const checkpoints = [
+  { x: 1500, y: 300 },
+  { x: 2500, y: 1000 },
+  { x: 1500, y: 1700 },
+  { x: 500, y: 1000 }
+];
+
+// ======================= STATE =======================
+const state = {
+  socket: null,
+  myId: null,
+  roomCode: null,
+  inGame: false,
+  players: {},  // id -> { x, y, angle, speed, color, name, lap }
+  me: { x: 500, y: 400, angle: 0, speed: 0, lap: 1, cp: 0 },
+  cam: { x: 500, y: 400 },
+  inputs: { up:false, down:false, left:false, right:false },
+  color: '#ff3366',
+  nick: 'Гонщик1',
+  lastSend: 0,
+  lastUpdate: performance.now(),
+  finishing: false
+};
+
+// ======================= CANVAS =======================
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, DPR;
+function resize() {
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  W = canvas.width = innerWidth * DPR;
+  H = canvas.height = innerHeight * DPR;
+  canvas.style.width = innerWidth + 'px';
+  canvas.style.height = innerHeight + 'px';
+}
+addEventListener('resize', resize);
+addEventListener('orientationchange', () => setTimeout(resize, 200));
+resize();
+
+// ======================= UI =======================
+const $ = id => document.getElementById(id);
+const menu = $('menu'), lobby = $('lobby'), hud = $('hud'), controls = $('controls');
+
+const COLORS = ['#ff3366','#33ccff','#ffcc00','#66ff66','#ff66cc','#ff8800','#aa66ff','#00ffcc'];
+const colorsEl = $('colors');
+COLORS.forEach((c, i) => {
+  const d = document.createElement('div');
+  d.className = 'swatch' + (i === 0 ? ' active' : '');
+  d.style.background = c;
+  d.onclick = () => {
+    state.color = c;
+    document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+    d.classList.add('active');
+  };
+  colorsEl.appendChild(d);
+});
+
+// ======================= SOCKET =======================
+const socket = io();
+state.socket = socket;
+
+socket.on('connect', () => { state.myId = socket.id; });
+socket.on('disconnect', () => { showError('Соединение потеряно'); });
+
+socket.on('playerJoined', (p) => {
+  state.players[p.id] = p;
+  renderLobbyPlayers();
+});
+socket.on('playerLeft', (id) => {
+  delete state.players[id];
+  renderLobbyPlayers();
+  renderLeaderboard();
+});
+socket.on('playerUpdate', (d) => {
+  if (!state.players[d.id]) {
+    state.players[d.id] = { id: d.id, name: 'Игрок', color: '#888', lap: 1 };
+  }
+  Object.assign(state.players[d.id], d);
+});
+
+socket.on('gameStarted', () => {
+  startGameClient();
+});
+
+// ======================= MENU =======================
+function showError(msg) {
+  $('err').textContent = msg;
+  setTimeout(() => { $('err').textContent = ''; }, 4000);
+}
+
+$('btnCreate').onclick = () => {
+  const name = $('nick').value.trim() || 'Гонщик';
+  state.nick = name;
+  socket.emit('createRoom', { name, color: state.color }, (res) => {
+    if (!res.ok) return showError(res.error || 'Ошибка');
+    state.roomCode = res.code;
+    state.players = {};
+    res.players.forEach(p => state.players[p.id] = p);
+    enterLobby();
+  });
+};
+
+$('btnJoin').onclick = () => {
+  const code = $('code').value.trim().toUpperCase();
+  const name = $('nick').value.trim() || 'Гонщик';
+  if (code.length !== 5) return showError('Код из 5 символов');
+  state.nick = name;
+  socket.emit('joinRoom', { code, name, color: state.color }, (res) => {
+    if (!res.ok) return showError(res.error || 'Ошибка');
+    state.roomCode = res.code;
+    state.players = {};
+    res.players.forEach(p => state.players[p.id] = p);
+    enterLobby();
+  });
+};
+
+function enterLobby() {
+  menu.classList.add('hidden');
+  lobby.classList.remove('hidden');
+  $('roomCodeLbl').textContent = state.roomCode;
+  renderLobbyPlayers();
+}
+
+function renderLobbyPlayers() {
+  const box = $('plBox');
+  box.innerHTML = '';
+  const list = Object.values(state.players);
+  $('plCount').textContent = list.length;
+  list.forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'pl-item';
+    d.innerHTML = `<div class="pl-dot" style="background:${p.color}"></div>
+      <span>${escapeHtml(p.name)}${p.id === state.myId ? ' (вы)' : ''}</span>`;
+    box.appendChild(d);
+  });
+}
+
+$('btnStart').onclick = () => {
+  socket.emit('startGame');
+};
+
+$('btnLeave').onclick = () => {
+  socket.disconnect();
+  setTimeout(() => location.reload(), 200);
+};
+
+$('exitBtn').onclick = () => {
+  if (confirm('Выйти из гонки?')) {
+    socket.disconnect();
+    setTimeout(() => location.reload(), 200);
+  }
+};
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// ======================= GAME START =======================
+function startGameClient() {
+  lobby.classList.add('hidden');
+  hud.classList.remove('hidden');
+  controls.classList.remove('hidden');
+  state.inGame = true;
+
+  // Начальная позиция - каждый у своего слота
+  const list = Object.values(state.players);
+  const mySlot = list.findIndex(p => p.id === state.myId);
+  state.me.x = 500;
+  state.me.y = 400 + (mySlot >= 0 ? mySlot : 0) * 100;
+  state.me.angle = 0;
+  state.me.speed = 0;
+  state.me.lap = 1;
+  state.me.cp = 0;
+  state.cam.x = state.me.x;
+  state.cam.y = state.me.y;
+  state.finishing = false;
+  state.lastUpdate = performance.now();
+  requestAnimationFrame(loop);
+}
+
+// ======================= INPUT =======================
+document.querySelectorAll('.cbtn').forEach(btn => {
+  const k = btn.dataset.k;
+  const on = (e) => { e.preventDefault(); state.inputs[k] = true; btn.classList.add('on'); };
+  const off = (e) => { e.preventDefault(); state.inputs[k] = false; btn.classList.remove('on'); };
+  btn.addEventListener('touchstart', on, {passive:false});
+  btn.addEventListener('touchend', off, {passive:false});
+  btn.addEventListener('touchcancel', off, {passive:false});
+  btn.addEventListener('mousedown', on);
+  btn.addEventListener('mouseup', off);
+  btn.addEventListener('mouseleave', off);
+});
+
+// ======================= PHYSICS =======================
+function onRoad(x, y, r = 12) {
+  const inOuter = x - r > TRACK.x && x + r < TRACK.x + TRACK.w &&
+                  y - r > TRACK.y && y + r < TRACK.y + TRACK.h;
+  const inInner = x + r > INNER.x && x - r < INNER.x + INNER.w &&
+                  y + r > INNER.y && y - r < INNER.y + INNER.h;
+  return inOuter && !inInner;
+}
+
+function update(dt) {
+  const me = state.me;
+  const inp = state.inputs;
+
+  if (inp.up) me.speed += ACCEL * dt;
+  else if (inp.down) {
+    if (me.speed > 0) me.speed -= BRAKE * dt;
+    else me.speed -= ACCEL * 0.6 * dt;
+  } else {
+    if (me.speed > 0) me.speed = Math.max(0, me.speed - FRICTION * dt);
+    else if (me.speed < 0) me.speed = Math.min(0, me.speed + FRICTION * dt);
+  }
+  me.speed = Math.max(MAX_BACK, Math.min(MAX_FWD, me.speed));
+
+  const speedFactor = Math.min(1, Math.abs(me.speed) / 130);
+  const turn = (inp.left ? -1 : 0) + (inp.right ? 1 : 0);
+  const turnRate = 2.7 * speedFactor;
+  if (me.speed >= 0) me.angle += turn * turnRate * dt;
+  else me.angle -= turn * turnRate * dt;
+
+  let nx = me.x + Math.cos(me.angle) * me.speed * dt;
+  let ny = me.y + Math.sin(me.angle) * me.speed * dt;
+
+  if (onRoad(nx, me.y)) me.x = nx; else me.speed *= 0.4;
+  if (onRoad(me.x, ny)) me.y = ny; else me.speed *= 0.4;
+
+  // чекпоинты
+  const cp = checkpoints[me.cp];
+  const dx = me.x - cp.x, dy = me.y - cp.y;
+  if (dx*dx + dy*dy < CP_RADIUS*CP_RADIUS) {
+    me.cp++;
+    if (me.cp >= checkpoints.length) {
+      me.cp = 0;
+      me.lap++;
+      if (me.lap > TOTAL_LAPS && !state.finishing) {
+        state.finishing = true;
+      }
+    }
+  }
+
+  // камера
+  state.cam.x += (me.x - state.cam.x) * Math.min(1, 6 * dt);
+  state.cam.y += (me.y - state.cam.y) * Math.min(1, 6 * dt);
+
+  // HUD
+  $('spd').textContent = Math.round(Math.abs(me.speed) / 4);
+  $('lapN').textContent = Math.min(me.lap, TOTAL_LAPS);
+}
+
+// ======================= NETWORK SEND =======================
+function sendUpdate(now) {
+  if (now - state.lastSend < 50) return; // 20 Hz
+  state.lastSend = now;
+  socket.emit('update', {
+    x: state.me.x, y: state.me.y,
+    angle: state.me.angle, speed: state.me.speed,
+    lap: state.me.lap
+  });
+}
+
+// ======================= RENDER =======================
+function drawTrack() {
+  // Трава
+  ctx.fillStyle = '#2d5a27';
+  ctx.fillRect(0, 0, TRACK.x + TRACK.w + 400, TRACK.y + TRACK.h + 400);
+
+  // Асфальт — кольцо
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(TRACK.x, TRACK.y, TRACK.w, TRACK.h);
+  ctx.fillStyle = '#2d5a27';
+  ctx.fillRect(INNER.x, INNER.y, INNER.w, INNER.h);
+
+  // Разметка
+  ctx.strokeStyle = 'rgba(255,255,255,.55)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([30, 30]);
+  ctx.strokeRect(TRACK.x + 20, TRACK.y + 20, TRACK.w - 40, TRACK.h - 40);
+  ctx.strokeRect(INNER.x - 20, INNER.y - 20, INNER.w + 40, INNER.h + 40);
+  ctx.setLineDash([]);
+
+  // Финиш/старт
+  for (let i = 0; i < 12; i++) {
+    for (let j = 0; j < 3; j++) {
+      ctx.fillStyle = (i + j) % 2 ? '#fff' : '#111';
+      ctx.fillRect(430, TRACK.y + i * 20 + j * 2, 22, 20);
+    }
+  }
+
+  // Деревья внутри
+  for (let i = 0; i < 25; i++) {
+    const tx = INNER.x + 60 + ((i * 173) % (INNER.w - 120));
+    const ty = INNER.y + 60 + ((i * 251) % (INNER.h - 120));
+    drawTree(tx, ty);
+  }
+  // Деревья снаружи
+  for (let i = 0; i < 40; i++) {
+    const tx = 20 + ((i * 211) % (TRACK.x + TRACK.w + 300));
+    const ty = 20 + ((i * 307) % (TRACK.y + TRACK.h + 200));
+    if (onRoad(tx, ty, 30)) continue;
+    drawTree(tx, ty);
+  }
+}
+
+function drawTree(x, y) {
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.arc(x + 3, y + 3, 18, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#1e3d1a';
+  ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#2d5a27';
+  ctx.beginPath(); ctx.arc(x - 4, y - 4, 11, 0, Math.PI*2); ctx.fill();
+}
+
+function drawCar(x, y, angle, color, name, isMe) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  // Тень
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.fillRect(-20, -10, 46, 24);
+
+  // Корпус
+  ctx.fillStyle = color;
+  ctx.fillRect(-22, -12, 44, 24);
+  // Обводка
+  ctx.strokeStyle = 'rgba(0,0,0,.4)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-22, -12, 44, 24);
+
+  // Кабина
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(-6, -9, 12, 18);
+
+  // Лобовое
+  ctx.fillStyle = 'rgba(120,200,255,.85)';
+  ctx.fillRect(4, -7, 6, 14);
+
+  // Фары
+  ctx.fillStyle = '#ffff88';
+  ctx.fillRect(19, -10, 3, 4);
+  ctx.fillRect(19, 6, 3, 4);
+
+  // Задние
+  ctx.fillStyle = '#ff3333';
+  ctx.fillRect(-23, -10, 2, 4);
+  ctx.fillRect(-23, 6, 2, 4);
+
+  ctx.restore();
+
+  // Ник
+  ctx.save();
+  ctx.fillStyle = isMe ? '#ffcc00' : '#fff';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,.7)';
+  ctx.lineWidth = 3;
+  ctx.strokeText(name, x, y - 28);
+  ctx.fillText(name, x, y - 28);
+  ctx.restore();
+}
+
+function render() {
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  const baseScale = Math.min(W / 1400, H / 900);
+  const scale = Math.max(0.6, baseScale);
+  ctx.scale(scale, scale);
+  ctx.translate(W/(2*scale) - state.cam.x, H/(2*scale) - state.cam.y);
+
+  drawTrack();
+
+  // Другие игроки
+  for (const id in state.players) {
+    if (id === state.myId) continue;
+    const p = state.players[id];
+    drawCar(p.x, p.y, p.angle, p.color, p.name, false);
+  }
+  // Моя машина
+  drawCar(state.me.x, state.me.y, state.me.angle, state.color, state.nick, true);
+
+  ctx.restore();
+}
+
+// ======================= LEADERBOARD =======================
+function renderLeaderboard() {
+  const lb = $('lb');
+  const all = [];
+  all.push({
+    name: state.nick, color: state.color, lap: state.me.lap,
+    score: state.me.lap * 1000 + state.me.cp * 100, me: true
+  });
+  for (const id in state.players) {
+    if (id === state.myId) continue;
+    const p = state.players[id];
+    all.push({
+      name: p.name || 'Игрок', color: p.color || '#888',
+      lap: p.lap || 1,
+      score: (p.lap || 1) * 1000 + 50,
+      me: false
+    });
+  }
+  all.sort((a, b) => b.score - a.score);
+  lb.innerHTML = all.map((p, i) =>
+    `<div class="lb-row"><span><span class="lb-dot" style="background:${p.color}"></span>${i+1}. ${escapeHtml(p.name)}</span><span>${p.lap}кр</span></div>`
+  ).join('');
+}
+
+// ======================= LOOP =======================
+function loop(now) {
+  const dt = Math.min(0.05, (now - state.lastUpdate) / 1000);
+  state.lastUpdate = now;
+
+  update(dt);
+  sendUpdate(now);
+  render();
+
+  if (now - (loop._lbT || 0) > 400) {
+    loop._lbT = now;
+    renderLeaderboard();
+  }
+
+  if (state.inGame) requestAnimationFrame(loop);
+}
+
+})();
+</script>
+</body>
+  </html>
